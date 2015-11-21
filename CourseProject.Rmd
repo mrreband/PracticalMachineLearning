@@ -1,11 +1,9 @@
 #Practical Machine Learning - Course Project 
-
-Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
-
-In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+This project aims to demonstrate the predictive power of Machine Learning techniques, by processing the provided wearable-technology data set, and using accelerometer data to predict specific manners in which exercises were performed.  
 
 
 ###Data 
+The provided data set can be found [here](http://groupware.les.inf.puc-rio.br/har) and consists of 19622 observations of 160 variables.  
 
 ```{r echo=FALSE,message=FALSE}
 #download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv","pml-training.csv")
@@ -14,33 +12,83 @@ pmlTraining <-  read.csv("pml-training.csv", sep = ",", header = TRUE)
 pmlTesting <- read.csv("pml-testing.csv", sep=",", header = TRUE)
 ```
 
-The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment. 
+67 of these variables contain N/A values for more than 95% of the observations, so they will be excluded from further analysis.  
+```{r}
+#exclude columns with a large amount of NA values
+naCounts <-sapply(pmlTraining, function(y) sum(length(which(is.na(y)))))
+pmlTraining <- pmlTraining[,naCounts / nrow(pmlTraining) < 0.95]
+```
 
+An additional 42 variables are factor variables with very little variance, so they will be excluded as well.  We can also exclude the "x" and "timestamp" variables, as they are for identification purposes and do not provide any predictive power. 
 
-
-
-
-
-
-
-###What you should submit
-
-The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases. 
-
-1. Your submission should consist of a link to a Github repo with your R markdown and compiled HTML file describing your analysis. Please constrain the text of the writeup to < 2000 words and the number of figures to be less than 5. It will make it easier for the graders if you submit a repo with a gh-pages branch so the HTML page can be viewed online (and you always want to make it easy on graders :-).
-2. You should also apply your machine learning algorithm to the 20 test cases available in the test data above. Please submit your predictions in appropriate format to the programming assignment for automated grading. See the programming assignment for additional details. 
-
-
-
-###Reproducibility 
-
-Due to security concerns with the exchange of R code, your code will not be run during the evaluation by your classmates. Please be sure that if they download the repo, they will be able to view the compiled HTML version of your analysis. 
-
-\pagebreak
+We will keep the classe variable as it is the dependent variable to be predicted. 
 
 ```{r}
-str(pmlTraining, list.len=160)
+#exclude factor columns
+isFactor <- sapply(pmlTraining, function(y) is.factor(y))
+isFactor["classe"] = FALSE
+pmlTraining <- pmlTraining[,!isFactor]
+
+#exclude timestamps
+pmlTraining <- pmlTraining[, !(colnames(pmlTraining) %in% c("x", "raw_timestamp_part_1", "raw_timestamp_part_2"))]
+```
+
+Note that our dataset now contains 19622 observations of 55 variables, and that all cases are complete: 
+```{r}
+dim(pmlTraining)
+table(complete.cases(pmlTraining))
+```
+
+Below are several statements to generate correlation matrixes for each sensor location (belt, arm, forearm, dumbbell).  In the interest of brevity, the results or each correlation plot is not explicitly included -- they can be reproduced independently if desired.   
+
+The correlation plots show that most data points are statiscally uncorrelated with similar data points, suggesting that they can each provide additional predictive power in our final model.  Several exceptions to this: 
+
+- "roll\_belt" vs "total\_accel\_belt"
+- "pitch\_belt" vs "accel\_belt\_x", "accel\_belt\_z", "magnet\_belt\_x"
+- "gyros\_arm\_x" vs "gyros\_arm\_y"
+- "magnet\_arm\_y" vs "accel\_arm\_x", "accel\_arm\_z", "magnet\_arm\_x", "magnet\_arm\_z"
+- "magnet\_arm\_z" vs "accel\_arm\_x", "magnet\_arm\_x", "magnet\_arm\_y"
+- "gyros\_dumbbell\_x" vs "gyros\_dumbbell\_z"
+
+```{r, eval=FALSE}
+install.packages("corrplot")
+library(corrplot)
+corrplot(cor(pmlTraining[,grep("belt", names(pmlTraining))]), method="pie")
+corrplot(cor(pmlTraining[,grep("_arm_", names(pmlTraining))]), method="pie")
+corrplot(cor(pmlTraining[,grep("forearm", names(pmlTraining))]), method="pie")
+corrplot(cor(pmlTraining[,grep("dumbbell", names(pmlTraining))]), method="pie")
+```
+
+In light of this, we will also exclude pitch\_belt, magnet\_arm\_y, and magnet\_arm\_z variables. 
+
+```{r echo=FALSE}
+pmlTraining <- pmlTraining[, !(colnames(pmlTraining) %in% c("pitch_belt", "magnet_arm_y", "magnet_arm_z"))]
 ```
 
 
+###Training and Predicting
+We will reserve 30% of the training data set to use for validation purposes, so that we can get an idea of the efficacy of our algorithm before attempting to apply it to the testing data set.  
 
+```{r}
+# split the data 70 training /30 validating
+library(caret)
+set.seed(54321)
+inTrain <- createDataPartition(pmlTraining$classe, p = .7, list = FALSE)
+trainData <- pmlTraining[inTrain,]
+validationData <- pmlTraining[-inTrain,]
+```
+
+Next, we can use the training data set to build a random forest predictive model.  We can then use this model to predict the 'classe' values in our validation data set.  
+
+```{r}
+library(randomForest)
+#trainRF <- randomForest(classe~total_accel_belt+total_accel_arm+total_accel_dumbbell+total_accel_forearm, trainData)
+trainRF <- randomForest(classe~., trainData)
+validationPredRF <- predict(trainRF, validationData)
+```
+
+
+###Results 
+```{r}
+confusionMatrix(validationPredRF, validationData$classe)
+```
