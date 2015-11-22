@@ -64,12 +64,17 @@ img {
 <div id="practical-machine-learning---course-project" class="section level1">
 <h1>Practical Machine Learning - Course Project</h1>
 <p>This project aims to demonstrate the predictive power of Machine Learning techniques, by processing the provided wearable-technology data set, and using accelerometer data to predict specific manners in which exercises were performed.</p>
+<p>Note that the analysis below requires the following libraries:</p>
+<ul>
+<li>caret</li>
+<li>randomForest</li>
+<li>corrplot</li>
+</ul>
 <div id="data" class="section level3">
 <h3>Data</h3>
-<p>The provided data set can be found <a href="http://groupware.les.inf.puc-rio.br/har">here</a> and consists of 19622 observations of 160 variables.</p>
-<p>67 of these variables contain N/A values for more than 95% of the observations, so they will be excluded from further analysis.</p>
-<pre class="r"><code>#exclude columns with a large amount of NA values
-naCounts &lt;-sapply(pmlTraining, function(y) sum(length(which(is.na(y)))))
+<p>The provided data set can be found <a href="http://groupware.les.inf.puc-rio.br/har">here</a>. It consists of 19,622 observations of 160 variables.</p>
+<p>67 of these variables contain N/A values for more than 95% of the observations, so they will be excluded from further analysis:</p>
+<pre class="r"><code>naCounts &lt;-sapply(pmlTraining, function(y) sum(length(which(is.na(y)))))
 pmlTraining &lt;- pmlTraining[,naCounts / nrow(pmlTraining) &lt; 0.95]</code></pre>
 <p>An additional 42 variables are factor variables with very little variance, so they will be excluded as well. We can also exclude the “x” and “timestamp” variables, as they are for identification purposes and do not provide any predictive power.</p>
 <p>We will keep the classe variable as it is the dependent variable to be predicted.</p>
@@ -78,15 +83,12 @@ isFactor &lt;- sapply(pmlTraining, function(y) is.factor(y))
 isFactor[&quot;classe&quot;] = FALSE
 pmlTraining &lt;- pmlTraining[,!isFactor]
 
-#exclude timestamps
+#exclude x and timestamp variables
 pmlTraining &lt;- pmlTraining[, !(colnames(pmlTraining) %in% c(&quot;x&quot;, &quot;raw_timestamp_part_1&quot;, &quot;raw_timestamp_part_2&quot;))]</code></pre>
-<p>Note that our dataset now contains 19622 observations of 55 variables, and that all cases are complete:</p>
-<pre class="r"><code>dim(pmlTraining)</code></pre>
-<pre><code>## [1] 19622    55</code></pre>
-<pre class="r"><code>table(complete.cases(pmlTraining))</code></pre>
-<pre><code>## 
-##  TRUE 
-## 19622</code></pre>
+<p>The resulting dataset now contains 19,622 complete observations of 55 variables.</p>
+</div>
+<div id="correlation" class="section level3">
+<h3>Correlation</h3>
 <p>Below are several statements to generate correlation matrixes for each sensor location (belt, arm, forearm, dumbbell). In the interest of brevity, the results or each correlation plot is not explicitly included – they can be reproduced independently if desired.</p>
 <p>The correlation plots show that most data points are statiscally uncorrelated with similar data points, suggesting that they can each provide additional predictive power in our final model. Several exceptions to this:</p>
 <ul>
@@ -97,8 +99,7 @@ pmlTraining &lt;- pmlTraining[, !(colnames(pmlTraining) %in% c(&quot;x&quot;, &q
 <li>“magnet_arm_z” vs “accel_arm_x”, “magnet_arm_x”, “magnet_arm_y”</li>
 <li>“gyros_dumbbell_x” vs “gyros_dumbbell_z”</li>
 </ul>
-<pre class="r"><code>install.packages(&quot;corrplot&quot;)
-library(corrplot)
+<pre class="r"><code>require(corrplot)
 corrplot(cor(pmlTraining[,grep(&quot;belt&quot;, names(pmlTraining))]), method=&quot;pie&quot;)
 corrplot(cor(pmlTraining[,grep(&quot;_arm_&quot;, names(pmlTraining))]), method=&quot;pie&quot;)
 corrplot(cor(pmlTraining[,grep(&quot;forearm&quot;, names(pmlTraining))]), method=&quot;pie&quot;)
@@ -108,56 +109,54 @@ corrplot(cor(pmlTraining[,grep(&quot;dumbbell&quot;, names(pmlTraining))]), meth
 <div id="training-and-predicting" class="section level3">
 <h3>Training and Predicting</h3>
 <p>We will reserve 30% of the training data set to use for validation purposes, so that we can get an idea of the efficacy of our algorithm before attempting to apply it to the testing data set.</p>
-<pre class="r"><code># split the data 70 training /30 validating
-library(caret)</code></pre>
-<pre><code>## Loading required package: lattice
-## Loading required package: ggplot2</code></pre>
-<pre class="r"><code>set.seed(54321)
-inTrain &lt;- createDataPartition(pmlTraining$classe, p = .7, list = FALSE)
+<pre class="r"><code>set.seed(7231)
+inTrain = createDataPartition(pmlTraining$classe, p = 0.7)[[1]]
 trainData &lt;- pmlTraining[inTrain,]
 validationData &lt;- pmlTraining[-inTrain,]</code></pre>
-<p>Next, we can use the training data set to build a random forest predictive model. We can then use this model to predict the ‘classe’ values in our validation data set.</p>
-<pre class="r"><code>library(randomForest)</code></pre>
-<pre><code>## randomForest 4.6-12
-## Type rfNews() to see new features/changes/bug fixes.</code></pre>
-<pre class="r"><code>#trainRF &lt;- randomForest(classe~total_accel_belt+total_accel_arm+total_accel_dumbbell+total_accel_forearm, trainData)
-trainRF &lt;- randomForest(classe~., trainData)
-validationPredRF &lt;- predict(trainRF, validationData)</code></pre>
+<p>Next, we can use the training data set to build a random forest predictive model. We can then use this model to predict the <em>‘classe’</em> values in our validation data set.</p>
+<pre class="r"><code>mod &lt;- train(classe~.,method=&quot;rf&quot;,data=trainData, allowParallel=TRUE, trControl = trainControl(method = &quot;cv&quot;, number = 3), preProcess=&quot;pca&quot;)
+validationPred &lt;- predict(mod, validationData)</code></pre>
 </div>
 <div id="results" class="section level3">
 <h3>Results</h3>
-<pre class="r"><code>confusionMatrix(validationPredRF, validationData$classe)</code></pre>
+<p>Below is the confusion matrix produced when comparing the predicted values to the actual values in the validation data set. The random forest algorithm proves to be extremely accurate:</p>
+<pre class="r"><code>confusionMatrix(validationPred, validationData$classe)</code></pre>
 <pre><code>## Confusion Matrix and Statistics
 ## 
 ##           Reference
 ## Prediction    A    B    C    D    E
-##          A 1674    0    0    0    0
-##          B    0 1139    0    0    0
-##          C    0    0 1026    0    0
-##          D    0    0    0  964    0
-##          E    0    0    0    0 1082
+##          A 1673    7    0    0    0
+##          B    1 1125   15    0    0
+##          C    0    7 1007   16    0
+##          D    0    0    4  947    1
+##          E    0    0    0    1 1081
 ## 
 ## Overall Statistics
-##                                      
-##                Accuracy : 1          
-##                  95% CI : (0.9994, 1)
-##     No Information Rate : 0.2845     
-##     P-Value [Acc &gt; NIR] : &lt; 2.2e-16  
-##                                      
-##                   Kappa : 1          
-##  Mcnemar's Test P-Value : NA         
+##                                           
+##                Accuracy : 0.9912          
+##                  95% CI : (0.9884, 0.9934)
+##     No Information Rate : 0.2845          
+##     P-Value [Acc &gt; NIR] : &lt; 2.2e-16       
+##                                           
+##                   Kappa : 0.9888          
+##  Mcnemar's Test P-Value : NA              
 ## 
 ## Statistics by Class:
 ## 
 ##                      Class: A Class: B Class: C Class: D Class: E
-## Sensitivity            1.0000   1.0000   1.0000   1.0000   1.0000
-## Specificity            1.0000   1.0000   1.0000   1.0000   1.0000
-## Pos Pred Value         1.0000   1.0000   1.0000   1.0000   1.0000
-## Neg Pred Value         1.0000   1.0000   1.0000   1.0000   1.0000
+## Sensitivity            0.9994   0.9877   0.9815   0.9824   0.9991
+## Specificity            0.9983   0.9966   0.9953   0.9990   0.9998
+## Pos Pred Value         0.9958   0.9860   0.9777   0.9947   0.9991
+## Neg Pred Value         0.9998   0.9970   0.9961   0.9966   0.9998
 ## Prevalence             0.2845   0.1935   0.1743   0.1638   0.1839
-## Detection Rate         0.2845   0.1935   0.1743   0.1638   0.1839
-## Detection Prevalence   0.2845   0.1935   0.1743   0.1638   0.1839
-## Balanced Accuracy      1.0000   1.0000   1.0000   1.0000   1.0000</code></pre>
+## Detection Rate         0.2843   0.1912   0.1711   0.1609   0.1837
+## Detection Prevalence   0.2855   0.1939   0.1750   0.1618   0.1839
+## Balanced Accuracy      0.9989   0.9922   0.9884   0.9907   0.9994</code></pre>
+<p>We can now use our algorithm to make our final test data predictions:</p>
+<pre class="r"><code>testPred &lt;- predict(mod, newdata=pmlTesting)
+testPred</code></pre>
+<pre><code>##  [1] B A A A A A A B A A A A B A A B A B B B
+## Levels: A B C D E</code></pre>
 </div>
 </div>
 
