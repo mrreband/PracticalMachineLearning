@@ -35,7 +35,8 @@ isFactor["classe"] = FALSE
 pmlTraining <- pmlTraining[,!isFactor]
 
 #exclude x and timestamp variables
-pmlTraining <- pmlTraining[, !(colnames(pmlTraining) %in% c("x", "raw_timestamp_part_1", "raw_timestamp_part_2"))]
+pmlTraining <- pmlTraining[, !(colnames(pmlTraining) %in% c("X", "raw_timestamp_part_1", "raw_timestamp_part_2"))]
+
 ```
 
 The resulting dataset now contains 19,622 complete observations of 55 variables.
@@ -79,15 +80,19 @@ require(caret)
 
 ```{r}
 set.seed(7231)
-inTrain = createDataPartition(pmlTraining$classe, p = 0.7)[[1]]
+inTrain = createDataPartition(pmlTraining$classe, p = 0.7, list=FALSE)
 trainData <- pmlTraining[inTrain,]
 validationData <- pmlTraining[-inTrain,]
 ```
 
 Next, we can use the training data set to build a random forest predictive model.  We can then use this model to predict the *'classe'* values in our validation data set.  
 
-```{r message=F, warning=F}
-mod <- train(classe~.,method="rf",data=trainData, allowParallel=TRUE, trControl = trainControl(method = "cv", number = 3), preProcess="pca")
+```{r message=F, warning=F, cache=T}
+#library(randomForest)
+#mod <- randomForest(classe~., data = trainData)
+#varImpPlot(mod)
+
+mod <- train(classe~.,method="rf",data=trainData, allowParallel=TRUE, trControl = trainControl(method = "cv", number = 3))
 validationPred <- predict(mod, validationData)
 ```
 
@@ -98,7 +103,10 @@ Below is the confusion matrix produced when comparing the predicted values to th
 confusionMatrix(validationPred, validationData$classe)
 ```
 
-We can now use our algorithm to make our final test data predictions:
+This analysis shows an overall accuracy of 0.9978, so we can expect a very low out-of-sample error rate.
+
+We can now use our algorithm to make our final test data predictions, which when submitted prove to be 100% accurate.
+
 ```{r}
 testPred <- predict(mod, newdata=pmlTesting)
 testPred
