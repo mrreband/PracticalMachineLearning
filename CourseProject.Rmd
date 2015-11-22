@@ -66,10 +66,7 @@ In light of this, we will also exclude pitch\_belt, magnet\_arm\_y, and magnet\_
 
 ```{r echo=FALSE}
 pmlTraining <- pmlTraining[, !(colnames(pmlTraining) %in% c("pitch_belt", "magnet_arm_y", "magnet_arm_z"))]
-#pmlCols  <- names(pmlTraining)
-#pmlTesting <- pmlTesting[,pmlCols[1:51]]
 ```
-
 
 ###Training and Predicting
 We will reserve 30% of the training data set to use for validation purposes, so that we can get an idea of the efficacy of our algorithm before attempting to apply it to the testing data set.  
@@ -88,10 +85,6 @@ validationData <- pmlTraining[-inTrain,]
 Next, we can use the training data set to build a random forest predictive model.  We can then use this model to predict the *'classe'* values in our validation data set.  
 
 ```{r message=F, warning=F, cache=T}
-#library(randomForest)
-#mod <- randomForest(classe~., data = trainData)
-#varImpPlot(mod)
-
 mod <- train(classe~.,method="rf",data=trainData, allowParallel=TRUE, trControl = trainControl(method = "cv", number = 3))
 validationPred <- predict(mod, validationData)
 ```
