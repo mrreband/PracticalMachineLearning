@@ -84,7 +84,7 @@ isFactor[&quot;classe&quot;] = FALSE
 pmlTraining &lt;- pmlTraining[,!isFactor]
 
 #exclude x and timestamp variables
-pmlTraining &lt;- pmlTraining[, !(colnames(pmlTraining) %in% c(&quot;x&quot;, &quot;raw_timestamp_part_1&quot;, &quot;raw_timestamp_part_2&quot;))]</code></pre>
+pmlTraining &lt;- pmlTraining[, !(colnames(pmlTraining) %in% c(&quot;X&quot;, &quot;raw_timestamp_part_1&quot;, &quot;raw_timestamp_part_2&quot;))]</code></pre>
 <p>The resulting dataset now contains 19,622 complete observations of 55 variables.</p>
 </div>
 <div id="correlation" class="section level3">
@@ -110,11 +110,15 @@ corrplot(cor(pmlTraining[,grep(&quot;dumbbell&quot;, names(pmlTraining))]), meth
 <h3>Training and Predicting</h3>
 <p>We will reserve 30% of the training data set to use for validation purposes, so that we can get an idea of the efficacy of our algorithm before attempting to apply it to the testing data set.</p>
 <pre class="r"><code>set.seed(7231)
-inTrain = createDataPartition(pmlTraining$classe, p = 0.7)[[1]]
+inTrain = createDataPartition(pmlTraining$classe, p = 0.7, list=FALSE)
 trainData &lt;- pmlTraining[inTrain,]
 validationData &lt;- pmlTraining[-inTrain,]</code></pre>
 <p>Next, we can use the training data set to build a random forest predictive model. We can then use this model to predict the <em>‘classe’</em> values in our validation data set.</p>
-<pre class="r"><code>mod &lt;- train(classe~.,method=&quot;rf&quot;,data=trainData, allowParallel=TRUE, trControl = trainControl(method = &quot;cv&quot;, number = 3), preProcess=&quot;pca&quot;)
+<pre class="r"><code>#library(randomForest)
+#mod &lt;- randomForest(classe~., data = trainData)
+#varImpPlot(mod)
+
+mod &lt;- train(classe~.,method=&quot;rf&quot;,data=trainData, allowParallel=TRUE, trControl = trainControl(method = &quot;cv&quot;, number = 3))
 validationPred &lt;- predict(mod, validationData)</code></pre>
 </div>
 <div id="results" class="section level3">
@@ -125,37 +129,41 @@ validationPred &lt;- predict(mod, validationData)</code></pre>
 ## 
 ##           Reference
 ## Prediction    A    B    C    D    E
-##          A 1673    7    0    0    0
-##          B    1 1125   15    0    0
-##          C    0    7 1007   16    0
-##          D    0    0    4  947    1
-##          E    0    0    0    1 1081
+##          A 1673    3    0    0    0
+##          B    1 1136    3    0    2
+##          C    0    0 1022    2    0
+##          D    0    0    1  961    0
+##          E    0    0    0    1 1080
 ## 
 ## Overall Statistics
 ##                                           
-##                Accuracy : 0.9912          
-##                  95% CI : (0.9884, 0.9934)
+##                Accuracy : 0.9978          
+##                  95% CI : (0.9962, 0.9988)
 ##     No Information Rate : 0.2845          
 ##     P-Value [Acc &gt; NIR] : &lt; 2.2e-16       
 ##                                           
-##                   Kappa : 0.9888          
+##                   Kappa : 0.9972          
 ##  Mcnemar's Test P-Value : NA              
 ## 
 ## Statistics by Class:
 ## 
 ##                      Class: A Class: B Class: C Class: D Class: E
-## Sensitivity            0.9994   0.9877   0.9815   0.9824   0.9991
-## Specificity            0.9983   0.9966   0.9953   0.9990   0.9998
-## Pos Pred Value         0.9958   0.9860   0.9777   0.9947   0.9991
-## Neg Pred Value         0.9998   0.9970   0.9961   0.9966   0.9998
+## Sensitivity            0.9994   0.9974   0.9961   0.9969   0.9982
+## Specificity            0.9993   0.9987   0.9996   0.9998   0.9998
+## Pos Pred Value         0.9982   0.9947   0.9980   0.9990   0.9991
+## Neg Pred Value         0.9998   0.9994   0.9992   0.9994   0.9996
 ## Prevalence             0.2845   0.1935   0.1743   0.1638   0.1839
-## Detection Rate         0.2843   0.1912   0.1711   0.1609   0.1837
-## Detection Prevalence   0.2855   0.1939   0.1750   0.1618   0.1839
-## Balanced Accuracy      0.9989   0.9922   0.9884   0.9907   0.9994</code></pre>
-<p>We can now use our algorithm to make our final test data predictions:</p>
-<pre class="r"><code>testPred &lt;- predict(mod, newdata=pmlTesting)
-testPred</code></pre>
-<pre><code>##  [1] B A A A A A A B A A A A B A A B A B B B
+## Detection Rate         0.2843   0.1930   0.1737   0.1633   0.1835
+## Detection Prevalence   0.2848   0.1941   0.1740   0.1635   0.1837
+## Balanced Accuracy      0.9993   0.9981   0.9978   0.9983   0.9990</code></pre>
+<p>This analysis shows an overall accuracy of 0.9978, so we can expect a very low out-of-sample error rate.</p>
+<p>We can now use our algorithm to make our final test data predictions, which when submitted prove to be 100% accurate.</p>
+<pre class="r"><code>testPred &lt;- predict(mod, newdata=pmlTesting)</code></pre>
+<pre><code>## Loading required package: randomForest
+## randomForest 4.6-12
+## Type rfNews() to see new features/changes/bug fixes.</code></pre>
+<pre class="r"><code>testPred</code></pre>
+<pre><code>##  [1] B A B A A E D B A A B C B A E E A B B B
 ## Levels: A B C D E</code></pre>
 </div>
 </div>
