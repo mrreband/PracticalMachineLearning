@@ -114,11 +114,7 @@ inTrain = createDataPartition(pmlTraining$classe, p = 0.7, list=FALSE)
 trainData &lt;- pmlTraining[inTrain,]
 validationData &lt;- pmlTraining[-inTrain,]</code></pre>
 <p>Next, we can use the training data set to build a random forest predictive model. We can then use this model to predict the <em>‘classe’</em> values in our validation data set.</p>
-<pre class="r"><code>#library(randomForest)
-#mod &lt;- randomForest(classe~., data = trainData)
-#varImpPlot(mod)
-
-mod &lt;- train(classe~.,method=&quot;rf&quot;,data=trainData, allowParallel=TRUE, trControl = trainControl(method = &quot;cv&quot;, number = 3))
+<pre class="r"><code>mod &lt;- train(classe~.,method=&quot;rf&quot;,data=trainData, allowParallel=TRUE, trControl = trainControl(method = &quot;cv&quot;, number = 3))
 validationPred &lt;- predict(mod, validationData)</code></pre>
 </div>
 <div id="results" class="section level3">
@@ -158,11 +154,8 @@ validationPred &lt;- predict(mod, validationData)</code></pre>
 ## Balanced Accuracy      0.9993   0.9981   0.9978   0.9983   0.9990</code></pre>
 <p>This analysis shows an overall accuracy of 0.9978, so we can expect a very low out-of-sample error rate.</p>
 <p>We can now use our algorithm to make our final test data predictions, which when submitted prove to be 100% accurate.</p>
-<pre class="r"><code>testPred &lt;- predict(mod, newdata=pmlTesting)</code></pre>
-<pre><code>## Loading required package: randomForest
-## randomForest 4.6-12
-## Type rfNews() to see new features/changes/bug fixes.</code></pre>
-<pre class="r"><code>testPred</code></pre>
+<pre class="r"><code>testPred &lt;- predict(mod, newdata=pmlTesting)
+testPred</code></pre>
 <pre><code>##  [1] B A B A A E D B A A B C B A E E A B B B
 ## Levels: A B C D E</code></pre>
 </div>
