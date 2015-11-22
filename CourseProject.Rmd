@@ -1,9 +1,15 @@
 #Practical Machine Learning - Course Project 
 This project aims to demonstrate the predictive power of Machine Learning techniques, by processing the provided wearable-technology data set, and using accelerometer data to predict specific manners in which exercises were performed.  
 
+Note that the analysis below requires the following libraries: 
+
+- caret
+- randomForest
+- corrplot
+
 
 ###Data 
-The provided data set can be found [here](http://groupware.les.inf.puc-rio.br/har) and consists of 19622 observations of 160 variables.  
+The provided data set can be found [here](http://groupware.les.inf.puc-rio.br/har).  It consists of 19,622 observations of 160 variables.  
 
 ```{r echo=FALSE,message=FALSE}
 #download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv","pml-training.csv")
@@ -12,9 +18,8 @@ pmlTraining <-  read.csv("pml-training.csv", sep = ",", header = TRUE)
 pmlTesting <- read.csv("pml-testing.csv", sep=",", header = TRUE)
 ```
 
-67 of these variables contain N/A values for more than 95% of the observations, so they will be excluded from further analysis.  
+67 of these variables contain N/A values for more than 95% of the observations, so they will be excluded from further analysis:  
 ```{r}
-#exclude columns with a large amount of NA values
 naCounts <-sapply(pmlTraining, function(y) sum(length(which(is.na(y)))))
 pmlTraining <- pmlTraining[,naCounts / nrow(pmlTraining) < 0.95]
 ```
@@ -29,15 +34,13 @@ isFactor <- sapply(pmlTraining, function(y) is.factor(y))
 isFactor["classe"] = FALSE
 pmlTraining <- pmlTraining[,!isFactor]
 
-#exclude timestamps
+#exclude x and timestamp variables
 pmlTraining <- pmlTraining[, !(colnames(pmlTraining) %in% c("x", "raw_timestamp_part_1", "raw_timestamp_part_2"))]
 ```
 
-Note that our dataset now contains 19622 observations of 55 variables, and that all cases are complete: 
-```{r}
-dim(pmlTraining)
-table(complete.cases(pmlTraining))
-```
+The resulting dataset now contains 19,622 complete observations of 55 variables.
+
+###Correlation
 
 Below are several statements to generate correlation matrixes for each sensor location (belt, arm, forearm, dumbbell).  In the interest of brevity, the results or each correlation plot is not explicitly included -- they can be reproduced independently if desired.   
 
@@ -50,9 +53,8 @@ The correlation plots show that most data points are statiscally uncorrelated wi
 - "magnet\_arm\_z" vs "accel\_arm\_x", "magnet\_arm\_x", "magnet\_arm\_y"
 - "gyros\_dumbbell\_x" vs "gyros\_dumbbell\_z"
 
-```{r, eval=FALSE}
-install.packages("corrplot")
-library(corrplot)
+```{r eval=FALSE}
+require(corrplot)
 corrplot(cor(pmlTraining[,grep("belt", names(pmlTraining))]), method="pie")
 corrplot(cor(pmlTraining[,grep("_arm_", names(pmlTraining))]), method="pie")
 corrplot(cor(pmlTraining[,grep("forearm", names(pmlTraining))]), method="pie")
@@ -63,32 +65,54 @@ In light of this, we will also exclude pitch\_belt, magnet\_arm\_y, and magnet\_
 
 ```{r echo=FALSE}
 pmlTraining <- pmlTraining[, !(colnames(pmlTraining) %in% c("pitch_belt", "magnet_arm_y", "magnet_arm_z"))]
+#pmlCols  <- names(pmlTraining)
+#pmlTesting <- pmlTesting[,pmlCols[1:51]]
 ```
 
 
 ###Training and Predicting
 We will reserve 30% of the training data set to use for validation purposes, so that we can get an idea of the efficacy of our algorithm before attempting to apply it to the testing data set.  
 
+```{r echo=FALSE, message=F, warning=F}
+require(caret)
+```
+
 ```{r}
-# split the data 70 training /30 validating
-library(caret)
-set.seed(54321)
-inTrain <- createDataPartition(pmlTraining$classe, p = .7, list = FALSE)
+set.seed(7231)
+inTrain = createDataPartition(pmlTraining$classe, p = 0.7)[[1]]
 trainData <- pmlTraining[inTrain,]
 validationData <- pmlTraining[-inTrain,]
 ```
 
-Next, we can use the training data set to build a random forest predictive model.  We can then use this model to predict the 'classe' values in our validation data set.  
+Next, we can use the training data set to build a random forest predictive model.  We can then use this model to predict the *'classe'* values in our validation data set.  
 
-```{r}
-library(randomForest)
-#trainRF <- randomForest(classe~total_accel_belt+total_accel_arm+total_accel_dumbbell+total_accel_forearm, trainData)
-trainRF <- randomForest(classe~., trainData)
-validationPredRF <- predict(trainRF, validationData)
+```{r message=F, warning=F}
+mod <- train(classe~.,method="rf",data=trainData, allowParallel=TRUE, trControl = trainControl(method = "cv", number = 3), preProcess="pca")
+validationPred <- predict(mod, validationData)
 ```
 
-
 ###Results 
+Below is the confusion matrix produced when comparing the predicted values to the actual values in the validation data set.  The random forest algorithm proves to be extremely accurate: 
+
 ```{r}
-confusionMatrix(validationPredRF, validationData$classe)
+confusionMatrix(validationPred, validationData$classe)
+```
+
+We can now use our algorithm to make our final test data predictions:
+```{r}
+testPred <- predict(mod, newdata=pmlTesting)
+testPred
+```
+
+```{r echo=FALSE}
+pml_write_files = function(x){
+    n = length(x)
+    for(i in 1:n){
+        filename = paste0("predictions/problem_id_",i,".txt")
+        write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+    }
+}
+
+answers <- as.character(testPred)
+pml_write_files(answers)
 ```
